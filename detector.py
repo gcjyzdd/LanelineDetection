@@ -536,6 +536,37 @@ class Detector():
 
         return output
 
+    def detectStraight(self, img):
+        """Detect straight lane lines"""
+        self.img = img
+        # preprocessing img
+        self.undist = self._undistort(img)
+        warped = self._warp(self.undist)
+
+        if self.debug:
+            db_gray = cv2.cvtColor(warped, cv2.COLOR_RGB2GRAY)
+            print('Mean gray = ', np.mean(db_gray))
+
+        binary_warped = self.performBinary(warped)
+        binary_warped = self._gaussian_blur(binary_warped)
+
+        # Define the Hough transform parameters
+        # Make a blank the same size as our image to draw on
+        rho = 1  # distance resolution in pixels of the Hough grid
+        theta = np.pi / 180  # angular resolution in radians of the Hough grid
+        threshold = 5  # minimum number of votes (intersections in Hough grid cell)
+        min_line_len = 20  # minimum number of pixels making up a line
+        max_line_gap = 5  # maximum gap in pixels between connectable line segments
+
+        bin_warp = binary_warped * 255
+        lines = hough_lines(bin_warp, rho, theta, threshold, min_line_len, max_line_gap)
+
+        color_edges = np.dstack((bin_warp, bin_warp, bin_warp))
+
+        # Draw the lines on the edge image
+        combo = cv2.addWeighted(color_edges, 0.8, lines, 1, 0)
+        return combo
+
     @profile
     def visualizeDetection(self, img):
         """Plot the detection result on the warped binary image"""
@@ -1029,6 +1060,47 @@ class Detector():
         # self.RightLine.current_fit = right_fit
         self.RightLine.allx = rightx
         self.RightLine.ally = righty
+
+
+def draw_lines(img, lines, color=[255, 0, 0], thickness=2):
+    """
+    NOTE: this is the function you might want to use as a starting point once you want to
+    average/extrapolate the line segments you detect to map out the full
+    extent of the lane (going from the result shown in raw-lines-example.mp4
+    to that shown in P1_example.mp4).
+
+    Think about things like separating line segments by their
+    slope ((y2-y1)/(x2-x1)) to decide which segments are part of the left
+    line vs. the right line.  Then, you can average the position of each of
+    the lines and extrapolate to the top and bottom of the lane.
+
+    This function draws `lines` with `color` and `thickness`.
+    Lines are drawn on the image inplace (mutates the image).
+    If you want to make the lines semi-transparent, think about combining
+    this function with the weighted_img() function below
+    """
+    line_image = np.copy(img) * 0  # creating a blank to draw lines on
+
+    # Iterate over the output "lines" and draw lines on the blank
+    for line in lines:
+        for x1, y1, x2, y2 in line:
+            theta = np.arctan((y2 - y1) / (x2 - x1))
+            if theta > 35 * np.pi / 180 or theta < -35 * np.pi / 180:
+                cv2.line(line_image, (x1, y1), (x2, y2), (255, 0, 0), 10)
+    return line_image
+
+
+def hough_lines(img, rho, theta, threshold, min_line_len, max_line_gap):
+    """
+    `img` should be the output of a Canny transform.
+
+    Returns an image with hough lines drawn.
+    """
+    lines = cv2.HoughLinesP(img, rho, theta, threshold, np.array([]), minLineLength=min_line_len,
+                            maxLineGap=max_line_gap)
+    line_img = np.zeros((img.shape[0], img.shape[1], 3), dtype=np.uint8)
+    line_img = draw_lines(line_img, lines)
+    return line_img
 
 def test():
     # Read in the saved camera matrix and distortion coefficients
