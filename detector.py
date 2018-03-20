@@ -561,10 +561,12 @@ class Detector():
         bin_warp = binary_warped * 255
         lines = hough_lines(bin_warp, rho, theta, threshold, min_line_len, max_line_gap)
 
-        color_edges = np.dstack((bin_warp, bin_warp, bin_warp))
+        #color_edges = np.dstack((bin_warp, bin_warp, bin_warp))
+
+        newwarp = self._invwarp(lines)
 
         # Draw the lines on the edge image
-        combo = cv2.addWeighted(color_edges, 0.8, lines, 1, 0)
+        combo = cv2.addWeighted(img, 1, newwarp, 0.3, 0)
         return combo
 
     @profile
